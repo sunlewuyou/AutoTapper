@@ -23,16 +23,14 @@ jobs:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Fix broken gradle-wrapper.jar
+      - name: Fix wrapper if broken
         run: |
-          GRADLE_VERSION=$(grep -oP 'gradle-\K[0-9.]+(?=-bin)' gradle/wrapper/gradle-wrapper.properties)
-          echo "检测到 Gradle 版本: $GRADLE_VERSION"
-          wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip
-          unzip -q gradle-${GRADLE_VERSION}-bin.zip "gradle-${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar"
-          cp "gradle-${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar" gradle/wrapper/
-          rm -rf gradle-${GRADLE_VERSION} gradle-${GRADLE_VERSION}-bin.zip
-          echo "验证 gradle-wrapper.jar:"
-          jar tf gradle/wrapper/gradle-wrapper.jar | head -5
+          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            VERSION=$(grep distributionUrl gradle/wrapper/gradle-wrapper.properties | sed -n 's|.*gradle-\([0-9.]*\)-.*|\1|p')
+            wget -q https://services.gradle.org/distributions/gradle-$VERSION-bin.zip
+            unzip -q -j gradle-$VERSION-bin.zip "gradle-$VERSION/gradle/wrapper/gradle-wrapper.jar" -d gradle/wrapper/
+          fi
+
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug
