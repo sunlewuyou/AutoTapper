@@ -25,22 +25,12 @@ jobs:
 
       - name: Fix broken gradle-wrapper.jar
         run: |
-          # 读取项目中配置的 Gradle 版本
           GRADLE_VERSION=$(grep -oP 'gradle-\K[0-9.]+(?=-bin)' gradle/wrapper/gradle-wrapper.properties)
-          
           echo "检测到 Gradle 版本: $GRADLE_VERSION"
-          
-          # 下载指定版本的 Gradle
           wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip
-          
-          # 解压并替换损坏的 wrapper jar
           unzip -q gradle-${GRADLE_VERSION}-bin.zip "gradle-${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar"
           cp "gradle-${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar" gradle/wrapper/
-          
-          # 清理临时文件
           rm -rf gradle-${GRADLE_VERSION} gradle-${GRADLE_VERSION}-bin.zip
-          
-          # 验证修复
           echo "验证 gradle-wrapper.jar:"
           jar tf gradle/wrapper/gradle-wrapper.jar | head -5
 
