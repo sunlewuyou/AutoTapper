@@ -1,48 +1,36 @@
-name: Android CI (Safe Gradle Wrapper)
+name: Android CI (Wrapper-Free)
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   pull_request:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ 拉取源码
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # 2️⃣ 设置 JDK（Android 官方推荐 17）
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # 3️⃣ 安装并缓存 Gradle（提供 gradle 命令）
+      # 提供 system gradle（不使用 wrapper）
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      # 4️⃣ 【关键步骤】无条件重建 Gradle Wrapper（不信任仓库）
-      - name: Rebuild Gradle Wrapper safely
+      # 直接用 gradle 构建（关键）
+      - name: Build Release APK (no wrapper)
         run: |
-          echo "Rebuilding Gradle Wrapper from scratch..."
-          rm -rf gradle/wrapper
-          gradle wrapper --gradle-version 8.7 --distribution-type all
-          chmod +x gradlew
+          gradle assembleRelease \
+            --no-daemon \
+            --stacktrace
 
-      # 5️⃣ 构建 Release APK
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
-
-      # 6️⃣ 上传构建产物（APK）
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
