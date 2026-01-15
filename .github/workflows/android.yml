@@ -1,61 +1,54 @@
-name: Build Android APK
+name: Android CI
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - "main"
+      - "master"
+  pull_request:
+    branches:
+      - "main"
+      - "master"
 
 jobs:
   build:
-    name: Build APK
+    name: Build Release APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      # Checkout code
+      - name: Checkout sources
         uses: actions/checkout@v4
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
+      # Set up JDK 17 (适配大部分 Android 项目)
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: 17
 
-      - name: Fix gradle wrapper (simple version)
-        run: |
-          # 如果wrapper jar文件不存在或损坏
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ] || ! jar tf gradle/wrapper/gradle-wrapper.jar >/dev/null 2>&1; then
-            echo "修复 gradle-wrapper.jar..."
-            
-            # 方法1：使用系统gradle重新生成
-            if command -v gradle >/dev/null 2>&1; then
-              # 读取项目中配置的gradle版本
-              VERSION=$(grep distributionUrl gradle/wrapper/gradle-wrapper.properties | sed 's|.*gradle-||;s|-.*||')
-              echo "使用系统gradle重新生成wrapper，版本: $VERSION"
-              gradle wrapper --gradle-version $VERSION
-            else
-              # 方法2：如果系统没有gradle，下载指定版本的完整gradle
-              echo "下载Gradle..."
-              VERSION=$(grep distributionUrl gradle/wrapper/gradle-wrapper.properties | sed 's|.*gradle-||;s|-.*||')
-              wget https://services.gradle.org/distributions/gradle-$VERSION-all.zip
-              unzip gradle-$VERSION-all.zip
-              # 使用下载的gradle重新生成wrapper
-              gradle-$VERSION/bin/gradle wrapper
-              rm -rf gradle-$VERSION*
-            fi
-            echo "修复完成"
-          else
-            echo "gradle-wrapper.jar 正常"
-          fi
+      # Set up Gradle (自动安装 gradle + 检查 wrapper)
+      - name: Setup Gradle environment
+        uses: gradle/actions/setup-gradle@v5
 
-      - name: Build with Gradle
+      # Force regenerate gradle wrapper to fix broken gradle-wrapper.jar
+      - name: Regenerate Gradle Wrapper
         run: |
-          ./gradlew assembleDebug
-          
-      - name: Upload APK
+          echo "Removing existing gradle-wrapper.jar (可能损坏)..."
+          rm -f gradle/wrapper/gradle-wrapper.jar
+          chmod +x gradlew
+          # 这里根据项目需要指定 gradle 版本，可选更改
+          ./gradlew wrapper --gradle-version 8.7 --distribution-type all
+
+      # Now run the build
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      # Upload artifact (可选：把生成的 APK 输出到 Actions)
+      - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: AutoTapper-Release
+          path: app/build/outputs/apk/release/*.apk
