@@ -1,54 +1,50 @@
-name: Android CI
+name: Android CI (Safe Gradle Wrapper)
 
 on:
   push:
     branches:
-      - "main"
-      - "master"
+      - main
+      - master
   pull_request:
     branches:
-      - "main"
-      - "master"
+      - main
+      - master
 
 jobs:
   build:
-    name: Build Release APK
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout code
-      - name: Checkout sources
+      # 1️⃣ 拉取源码
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      # Set up JDK 17 (适配大部分 Android 项目)
-      - name: Setup Java
+      # 2️⃣ 设置 JDK（Android 官方推荐 17）
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # Set up Gradle (自动安装 gradle + 检查 wrapper)
-      - name: Setup Gradle environment
+      # 3️⃣ 安装并缓存 Gradle（提供 gradle 命令）
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      # Force regenerate gradle wrapper to fix broken gradle-wrapper.jar
-      - name: Regenerate Gradle Wrapper
+      # 4️⃣ 【关键步骤】无条件重建 Gradle Wrapper（不信任仓库）
+      - name: Rebuild Gradle Wrapper safely
         run: |
-          echo "Removing existing gradle-wrapper.jar (可能损坏)..."
-          rm -f gradle/wrapper/gradle-wrapper.jar
+          echo "Rebuilding Gradle Wrapper from scratch..."
+          rm -rf gradle/wrapper
+          gradle wrapper --gradle-version 8.7 --distribution-type all
           chmod +x gradlew
-          # 这里根据项目需要指定 gradle 版本，可选更改
-          ./gradlew wrapper --gradle-version 8.7 --distribution-type all
 
-      # Now run the build
-      - name: Build APK
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+      # 5️⃣ 构建 Release APK
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --no-daemon
 
-      # Upload artifact (可选：把生成的 APK 输出到 Actions)
-      - name: Upload release APK
+      # 6️⃣ 上传构建产物（APK）
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoTapper-Release
+          name: AutoTapper-Release-APK
           path: app/build/outputs/apk/release/*.apk
