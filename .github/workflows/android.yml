@@ -23,76 +23,39 @@ jobs:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Fix gradle-wrapper.jar if missing or corrupt
+      - name: Fix gradle wrapper (simple version)
         run: |
-          # 检查文件是否真的不存在或已损坏
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ] || ! jar tf gradle/wrapper/gradle-wrapper.jar > /dev/null 2>&1; then
-            echo "gradle-wrapper.jar is missing or invalid. Attempting to fix..."
-
-            # 1. 读取Gradle版本
-            VERSION=$(grep 'distributionUrl' gradle/wrapper/gradle-wrapper.properties | sed -n 's|.*gradle-\([0-9.]*\)-.*|\1|p')
-            if [ -z "$VERSION" ]; then
-              echo "❌ Could not determine Gradle version from gradle-wrapper.properties"
-              exit 1
-            fi
-            echo "📦 Detected Gradle version: $VERSION"
-
-            # 2. 确定分发类型 (bin 或 all)
-            if grep -q "-all.zip" gradle/wrapper/gradle-wrapper.properties; then
-              DIST_TYPE="all"
-              DIST_URL="https://services.gradle.org/distributions/gradle-${VERSION}-all.zip"
+          # 如果wrapper jar文件不存在或损坏
+          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ] || ! jar tf gradle/wrapper/gradle-wrapper.jar >/dev/null 2>&1; then
+            echo "修复 gradle-wrapper.jar..."
+            
+            # 方法1：使用系统gradle重新生成
+            if command -v gradle >/dev/null 2>&1; then
+              # 读取项目中配置的gradle版本
+              VERSION=$(grep distributionUrl gradle/wrapper/gradle-wrapper.properties | sed 's|.*gradle-||;s|-.*||')
+              echo "使用系统gradle重新生成wrapper，版本: $VERSION"
+              gradle wrapper --gradle-version $VERSION
             else
-              DIST_TYPE="bin"
-              DIST_URL="https://services.gradle.org/distributions/gradle-${VERSION}-bin.zip"
+              # 方法2：如果系统没有gradle，下载指定版本的完整gradle
+              echo "下载Gradle..."
+              VERSION=$(grep distributionUrl gradle/wrapper/gradle-wrapper.properties | sed 's|.*gradle-||;s|-.*||')
+              wget https://services.gradle.org/distributions/gradle-$VERSION-all.zip
+              unzip gradle-$VERSION-all.zip
+              # 使用下载的gradle重新生成wrapper
+              gradle-$VERSION/bin/gradle wrapper
+              rm -rf gradle-$VERSION*
             fi
-            echo "🔗 Distribution type: $DIST_TYPE"
-
-            # 3. 下载分发ZIP包
-            echo "📥 Downloading Gradle distribution from: $DIST_URL"
-            wget -q "$DIST_URL" -O "gradle-dist.zip"
-
-            # 4. 检查ZIP包内是否存在预期的wrapper jar文件
-            # 列出ZIP包内容，寻找可能的wrapper jar路径
-            echo "🔍 Searching for gradle-wrapper.jar in the distribution..."
-            UNZIP_PATHS=$(unzip -l "gradle-dist.zip" | grep "gradle-wrapper.jar" | awk '{print $4}' | head -1)
-
-            if [ -z "$UNZIP_PATHS" ]; then
-              echo "❌ gradle-wrapper.jar not found in the distribution zip."
-              echo "This distribution type ($DIST_TYPE) might not contain it. Trying to generate it using gradle command..."
-
-              # 尝试使用系统安装的gradle生成wrapper
-              if command -v gradle > /dev/null 2>&1; then
-                gradle wrapper --gradle-version $VERSION
-                echo "✅ Gradle wrapper regenerated using system gradle."
-              else
-                echo "❌ System gradle not available. Cannot generate wrapper."
-                echo "💡 Consider committing the correct gradle-wrapper.jar to your repository."
-                exit 1
-              fi
-            else
-              echo "✅ Found gradle-wrapper.jar at: $UNZIP_PATHS"
-              # 解压特定的文件
-              unzip -q -o "gradle-dist.zip" "$UNZIP_PATHS" -d "temp-gradle/"
-              # 将文件移动到正确位置
-              mv "temp-gradle/$UNZIP_PATHS" "gradle/wrapper/gradle-wrapper.jar"
-              rm -rf "temp-gradle"
-              echo "✅ gradle-wrapper.jar extracted and placed correctly."
-            fi
-
-            # 清理
-            rm -f "gradle-dist.zip"
+            echo "修复完成"
           else
-            echo "✅ gradle-wrapper.jar exists and appears valid."
+            echo "gradle-wrapper.jar 正常"
           fi
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
-
-      - name: Find all APKs
-        run: find . -type f -name "*.apk"
-
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
+      - name: Build with Gradle
+        run: |
+          ./gradlew assembleDebug
+          
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
         with:
-          name: debug-apk
-          path: '**/*.apk'
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
