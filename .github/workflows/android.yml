@@ -1,4 +1,4 @@
-name: Android CI (Wrapper-Free)
+name: Android CI (Plugin Safe)
 
 on:
   push:
@@ -20,12 +20,27 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # 提供 system gradle（不使用 wrapper）
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      # 直接用 gradle 构建（关键）
-      - name: Build Release APK (no wrapper)
+      # ⭐ 关键：注入 pluginManagement 仓库
+      - name: Inject Gradle plugin repositories
+        run: |
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle <<'EOF'
+          settingsEvaluated { settings ->
+              settings.pluginManagement {
+                  repositories {
+                      google()
+                      mavenCentral()
+                      gradlePluginPortal()
+                  }
+              }
+          }
+          EOF
+
+      # ⭐ 不用 wrapper，直接构建
+      - name: Build Release APK
         run: |
           gradle assembleRelease \
             --no-daemon \
